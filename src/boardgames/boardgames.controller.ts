@@ -7,10 +7,10 @@ import {
   Put,
   Delete,
   Query,
-  BadRequestException,
 } from '@nestjs/common';
 import { BoardGamesService } from './boardgames.service';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
+import { CreateBoardGameDto } from './dto/boardgames.dto';
 
 @Controller('boardgames')
 export class BoardGamesController {
@@ -23,16 +23,11 @@ export class BoardGamesController {
 
   @Get('search')
   async findOne(@Query('id') id?: string, @Query('name') name?: string) {
-    if (!id && !name) {
-      throw new BadRequestException('No search criteria provided');
-    }
-    return id
-      ? this.boardGamesService.findOneById(id)
-      : this.boardGamesService.findOneByName(name);
+    return this.boardGamesService.findOne({ id, name });
   }
 
   @Post()
-  create(@Body() boardGame: BoardGame) {
+  create(@Body() boardGame: CreateBoardGameDto) {
     return this.boardGamesService.create(boardGame);
   }
 
