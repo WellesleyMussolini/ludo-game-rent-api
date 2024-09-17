@@ -10,7 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { BoardGamesService } from './boardgames.service';
-import { BoardGame } from 'src/schemas/boardgames.schema';
+import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 
 @Controller('boardgames')
 export class BoardGamesController {

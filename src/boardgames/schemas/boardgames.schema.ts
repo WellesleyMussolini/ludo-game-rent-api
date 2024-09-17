@@ -8,7 +8,17 @@ export class BoardGame {
   @Prop({ required: true })
   image: string;
 
-  @Prop({ required: true })
+  @Prop({
+    enum: [
+      'Disponível',
+      'Reservado',
+      'Quarentena',
+      'Indisponível',
+      'Manutenção',
+      'Alugado',
+    ],
+    required: true,
+  })
   status: string;
 
   @Prop({ required: true })

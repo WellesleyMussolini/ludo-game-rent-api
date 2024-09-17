@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BoardGame, BoardGameSchema } from 'src/schemas/boardgames.schema';
+import {
+  BoardGame,
+  BoardGameSchema,
+} from 'src/boardgames/schemas/boardgames.schema';
 import { BoardGamesService } from './boardgames.service';
 import { BoardGamesController } from './boardgames.controller';
 
