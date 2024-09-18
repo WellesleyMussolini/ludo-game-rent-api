@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './schemas/users.schema';
 import { Model } from 'mongoose';
+import { handleErrors } from 'src/utils/handle-error';
 
 @Injectable()
 export class UsersService {
@@ -14,8 +15,22 @@ export class UsersService {
     return this.userModel.find().exec();
   }
 
-  create(user: User): Promise<User> {
-    return new this.userModel(user).save();
+  async findOneById(id: string): Promise<User> {
+    try {
+      const user = await this.userModel.findById(id).exec();
+
+      // REDUNDANTE
+      if (!user) {
+        throw new NotFoundException();
+      }
+
+      return user;
+    } catch (error) {
+      if (!id) {
+        throw new NotFoundException("User id can't be empty");
+      }
+      handleErrors({ error, message: 'User Id not found', id });
+    }
   }
 
   async update(id: string, user: User): Promise<User> {
@@ -28,12 +43,5 @@ export class UsersService {
     }
 
     return updatedUser;
-  }
-
-  async remove(id: string): Promise<void> {
-    const result = await this.userModel.findByIdAndDelete(id).exec();
-    if (!result) {
-      throw new NotFoundException(`Board game with id: "${id}" not found`);
-    }
   }
 }

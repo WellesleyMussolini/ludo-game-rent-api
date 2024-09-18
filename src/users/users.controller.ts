@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Put,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Body, Param, Put, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from './schemas/users.schema';
 
@@ -19,18 +11,13 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
-  @Post()
-  create(@Body() user: User) {
-    return this.usersService.create(user);
+  @Get('search')
+  async findOne(@Query('id') id: string) {
+    return this.usersService.findOneById(id);
   }
 
   @Put(':id')
   update(@Param('id') id: string, @Body() user: User) {
     return this.usersService.update(id, user);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
   }
 }

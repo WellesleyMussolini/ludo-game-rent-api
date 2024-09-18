@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { handleErrors } from 'src/utils/handle-error';
 import { CreateBoardGameDto } from './dto/boardgames.dto';
@@ -50,15 +50,11 @@ export class BoardGamesService {
     try {
       const boardgame = await this.boardgameModel.findById(id).exec();
 
-      const boardgameNotFound = Types.ObjectId.isValid(id) || !boardgame;
+      const boardgameNotFound = !boardgame;
 
       // PARECE SER REDUNDANTE ESSA LOGIC MAS POR ALGUM MOTIVO, MAS SEM ELA QUANDO NÃO ENCONTRADO O ID, O VALOR RETORNADO É UM OBJETO VAZIO
       if (boardgameNotFound) {
-        throw new NotFoundException({
-          error: 'BoardGame Not Found',
-          statusCode: 404,
-          message: `BoardGame '${id}' not found.`,
-        });
+        throw new NotFoundException();
       }
 
       return boardgame;
@@ -66,7 +62,7 @@ export class BoardGamesService {
       if (!id) {
         throw new NotFoundException("BoardGame id can't be empty");
       }
-      handleErrors({ error, message: `BoardGame id not found` });
+      handleErrors({ error, message: `BoardGame id not found`, id });
     }
   }
 
@@ -85,11 +81,7 @@ export class BoardGamesService {
 
       // PARECE SER REDUNDANTE ESSA LOGIC MAS POR ALGUM MOTIVO, MAS SEM ELA QUANDO NÃO ENCONTRADO O NAME, O VALOR RETORNADO É UM ARRAY VAZIO
       if (boardgameNotFound) {
-        throw new NotFoundException({
-          error: 'BoardGame Not Found',
-          statusCode: 404,
-          message: `BoardGame '${name}' not found.`,
-        });
+        throw new NotFoundException();
       }
 
       return boardgames;
