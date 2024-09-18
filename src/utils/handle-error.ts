@@ -30,14 +30,15 @@ type HandleErrors = {
 };
 
 export function handleErrors({ error, message, id }: HandleErrors) {
-  const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
-  const isObjectIdValid = !Types.ObjectId.isValid(id);
+  const isIdInvalid =
+    (error.kind === 'ObjectId' && error.path === '_id') ||
+    !Types.ObjectId.isValid(id);
 
   if (error.status === 404) {
     throw new NotFoundException(message);
   }
 
-  if (isIdInvalid || isObjectIdValid) {
+  if (isIdInvalid) {
     throw new BadRequestException('Invalid ID format');
   }
 
