@@ -1,5 +1,4 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Types } from 'mongoose';
 
 type CommonError = {
   response: {
@@ -29,11 +28,9 @@ type HandleErrors = {
   id?: string;
 };
 
-export function handleErrors({ error, message, id }: HandleErrors) {
-  const isIdInvalid =
-    (error.kind === 'ObjectId' && error.path === '_id') ||
-    !Types.ObjectId.isValid(id);
-
+export function handleErrors({ error, message }: HandleErrors) {
+  const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
+  console.log(new NotFoundException(message));
   if (error.status === 404) {
     throw new NotFoundException(message);
   }

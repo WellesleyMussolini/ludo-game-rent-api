@@ -5,106 +5,59 @@ import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { handleErrors } from 'src/utils/handle-error';
 import { CreateBoardGameDto } from './dto/boardgames.dto';
 
-// BUGS
-
-/* 
-BUG: SE O VALOR DO ID ESTIVER VAZIO O RETORNO NO POSTMAN VAI SER:
-{
-    "message": "BoardGame name can't be empty",
-    "error": "Not Found",
-    "statusCode": 404
-}
-
-
-BUG: O JOGO MONOPOLY NAO PODE SER ENCONTRADO PELO ID E ELE FOI CRIADO PELO POSTMAN.
-O JOGO PODE SER ENCONTRADO PELO NAME MAS NÃO PELO ID.
-
-{
-    "message": "BoardGame id not found",
-    "error": "Not Found",
-    "statusCode": 404
-}
-
-BUG: AS MENSAGES DE ERROR AO CRIAR UM JOGO COM UM DOS CAMPOS VAZIOS ESTÁ SENDO:
-
-{
-    "statusCode": 500,
-    "message": "Internal server error"
-}
-
-DEVERIA SER UMA DAS MENSAGEMS QUE ESTÁ NO DTO E NÃO "INTERNAL SERVER ERROR".
-*/
-
 @Injectable()
 export class BoardGamesService {
+  // Passar as verificações pro schema
   constructor(
     @InjectModel(BoardGame.name)
     private boardgameModel: Model<BoardGame>,
   ) {}
 
-  findAll(): Promise<BoardGame[]> {
-    return this.boardgameModel.find().exec();
+  async findAll(): Promise<CreateBoardGameDto[]> {
+    // Faltou tratar erro
+    const games = await this.boardgameModel.find().exec();
+
+    const formatedGames = games.map((game) => {
+      return {
+        ...game,
+        gameName: game.name,
+      };
+    });
+
+    return formatedGames;
   }
 
-  async findOneById(id: string): Promise<BoardGame> {
+  async getById(id: string): Promise<BoardGame> {
     try {
       const boardgame = await this.boardgameModel.findById(id).exec();
 
-      const boardgameNotFound = !boardgame;
-
-      // PARECE SER REDUNDANTE ESSA LOGIC MAS POR ALGUM MOTIVO, MAS SEM ELA QUANDO NÃO ENCONTRADO O ID, O VALOR RETORNADO É UM OBJETO VAZIO
-      if (boardgameNotFound) {
+      if (!boardgame) {
         throw new NotFoundException();
       }
 
       return boardgame;
     } catch (error) {
-      if (!id) {
-        throw new NotFoundException("BoardGame id can't be empty");
-      }
       handleErrors({ error, message: `BoardGame id not found`, id });
     }
   }
 
-  async findOneByName(name: string): Promise<BoardGame[]> {
+  async findByName(name: string): Promise<BoardGame[]> {
     try {
-      const searchName = name.toLowerCase().replace(/-/g, ' ');
+      const regex = { name: { $regex: name, $options: 'i' } };
 
-      const boardgames = await this.boardgameModel
-        .find({
-          name: { $regex: new RegExp(`^${searchName}$`, 'i') },
-        })
-        .exec();
+      const boardgames = await this.boardgameModel.find(regex).limit(5).exec();
 
-      const boardgameNotFound =
-        boardgames.length === 0 || !boardgames.length || !boardgames;
-
-      // PARECE SER REDUNDANTE ESSA LOGIC MAS POR ALGUM MOTIVO, MAS SEM ELA QUANDO NÃO ENCONTRADO O NAME, O VALOR RETORNADO É UM ARRAY VAZIO
-      if (boardgameNotFound) {
+      if (boardgames.length === 0) {
         throw new NotFoundException();
       }
 
       return boardgames;
     } catch (error) {
-      const isNameEmpty = !name || !name.length || name.length === 0;
-      if (isNameEmpty) {
-        throw new NotFoundException("BoardGame name can't be empty");
-      }
       handleErrors({
         error,
         message: `BoardGame '${name}' not found`,
       });
     }
-  }
-
-  async findOne({
-    id,
-    name,
-  }: {
-    id?: string;
-    name?: string;
-  }): Promise<BoardGame | Array<BoardGame>> {
-    return id ? this.findOneById(id) : this.findOneByName(name);
   }
 
   create(boardGame: CreateBoardGameDto): Promise<CreateBoardGameDto> {
@@ -118,6 +71,7 @@ export class BoardGamesService {
   }
 
   async update(id: string, boardGame: BoardGame): Promise<BoardGame> {
+    // Faltou tratar erro
     const updatedBoardGame = await this.boardgameModel
       .findByIdAndUpdate(id, boardGame, { new: true })
       .exec();
@@ -130,6 +84,7 @@ export class BoardGamesService {
   }
 
   async remove(id: string): Promise<void> {
+    // Faltou tratar erro
     const result = await this.boardgameModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Board game with id: "${id}" not found`);

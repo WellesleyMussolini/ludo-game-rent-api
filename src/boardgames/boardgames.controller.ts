@@ -21,9 +21,14 @@ export class BoardGamesController {
     return this.boardGamesService.findAll();
   }
 
-  @Get('search')
-  async findOne(@Query('id') id?: string, @Query('name') name?: string) {
-    return this.boardGamesService.findOne({ id, name });
+  @Get('get-by-id/:id')
+  async getById(@Param('id') id: string) {
+    return this.boardGamesService.getById(id);
+  }
+
+  @Get('search-by-name')
+  async findBoardgameByName(@Query('name') name?: string) {
+    return this.boardGamesService.findByName(name);
   }
 
   @Post()
