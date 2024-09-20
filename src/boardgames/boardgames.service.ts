@@ -3,28 +3,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { handleErrors } from 'src/utils/handle-error';
-import { CreateBoardGameDto } from './dto/boardgames.dto';
 
 @Injectable()
 export class BoardGamesService {
-  // Passar as verificações pro schema
   constructor(
     @InjectModel(BoardGame.name)
     private boardgameModel: Model<BoardGame>,
   ) {}
 
-  async findAll(): Promise<CreateBoardGameDto[]> {
-    // Faltou tratar erro
-    const games = await this.boardgameModel.find().exec();
-
-    const formatedGames = games.map((game) => {
-      return {
-        ...game,
-        gameName: game.name,
-      };
-    });
-
-    return formatedGames;
+  async findAll(): Promise<BoardGame[]> {
+    try {
+      return await this.boardgameModel.find().exec();
+    } catch (error) {
+      handleErrors({ error });
+    }
   }
 
   async getById(id: string): Promise<BoardGame> {
@@ -37,7 +29,7 @@ export class BoardGamesService {
 
       return boardgame;
     } catch (error) {
-      handleErrors({ error, message: `BoardGame id not found`, id });
+      handleErrors({ error, message: `BoardGame id not found` });
     }
   }
 
@@ -60,34 +52,38 @@ export class BoardGamesService {
     }
   }
 
-  create(boardGame: CreateBoardGameDto): Promise<CreateBoardGameDto> {
+  async create(boardGame: BoardGame): Promise<BoardGame> {
     try {
-      return new this.boardgameModel(boardGame).save();
+      return await new this.boardgameModel(boardGame).save();
     } catch (error) {
-      console.log('ERROR MESSAGE', error.message);
-      console.log('ERROR', error);
-      handleErrors(error);
+      handleErrors({ error });
     }
   }
 
   async update(id: string, boardGame: BoardGame): Promise<BoardGame> {
-    // Faltou tratar erro
-    const updatedBoardGame = await this.boardgameModel
-      .findByIdAndUpdate(id, boardGame, { new: true })
-      .exec();
+    try {
+      const updatedBoardGame = await this.boardgameModel
+        .findByIdAndUpdate(id, boardGame, { new: true, runValidators: true })
+        .exec();
 
-    if (!updatedBoardGame) {
-      throw new NotFoundException(`Board game with id ${id} not found`);
+      if (!updatedBoardGame) {
+        throw new NotFoundException(`BoardGame with id '${id}' not found`);
+      }
+
+      return updatedBoardGame;
+    } catch (error) {
+      handleErrors({ error });
     }
-
-    return updatedBoardGame;
   }
 
   async remove(id: string): Promise<void> {
-    // Faltou tratar erro
-    const result = await this.boardgameModel.findByIdAndDelete(id).exec();
-    if (!result) {
-      throw new NotFoundException(`Board game with id: "${id}" not found`);
+    try {
+      const result = await this.boardgameModel.findByIdAndDelete(id).exec();
+      if (!result) {
+        throw new NotFoundException(`Board game with id: "${id}" not found`);
+      }
+    } catch (error) {
+      handleErrors({ error, message: 'BoardGame id not found' });
     }
   }
 }

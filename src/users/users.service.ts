@@ -29,7 +29,7 @@ export class UsersService {
       if (!id) {
         throw new NotFoundException("User id can't be empty");
       }
-      handleErrors({ error, message: 'User Id not found', id });
+      handleErrors({ error, message: 'User Id not found' });
     }
   }
 

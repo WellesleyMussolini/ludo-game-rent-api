@@ -4,8 +4,8 @@ import {
   BoardGame,
   BoardGameSchema,
 } from 'src/boardgames/schemas/boardgames.schema';
-import { BoardGamesService } from './boardgames.service';
-import { BoardGamesController } from './boardgames.controller';
+import { BoardGamesService } from 'src/boardgames/boardgames.service';
+import { BoardGamesController } from 'src/boardgames/boardgames.controller';
 
 @Module({
   imports: [

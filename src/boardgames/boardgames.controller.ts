@@ -8,9 +8,8 @@ import {
   Delete,
   Query,
 } from '@nestjs/common';
-import { BoardGamesService } from './boardgames.service';
+import { BoardGamesService } from 'src/boardgames/boardgames.service';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
-import { CreateBoardGameDto } from './dto/boardgames.dto';
 
 @Controller('boardgames')
 export class BoardGamesController {
@@ -32,7 +31,7 @@ export class BoardGamesController {
   }
 
   @Post()
-  create(@Body() boardGame: CreateBoardGameDto) {
+  create(@Body() boardGame: BoardGame) {
     return this.boardGamesService.create(boardGame);
   }
 
