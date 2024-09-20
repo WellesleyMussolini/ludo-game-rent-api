@@ -13,7 +13,7 @@ export class UsersController {
 
   @Get('search')
   async findOne(@Query('id') id: string) {
-    return this.usersService.findOneById(id);
+    return this.usersService.findById(id);
   }
 
   @Put(':id')

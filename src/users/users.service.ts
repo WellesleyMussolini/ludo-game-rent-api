@@ -11,37 +11,41 @@ export class UsersService {
     private userModel: Model<User>,
   ) {}
 
-  findAll(): Promise<User[]> {
-    return this.userModel.find().exec();
+  async findAll(): Promise<User[]> {
+    try {
+      return await this.userModel.find().exec();
+    } catch (error) {
+      handleErrors({ error });
+    }
   }
 
-  async findOneById(id: string): Promise<User> {
+  async findById(id: string): Promise<User> {
     try {
       const user = await this.userModel.findById(id).exec();
 
-      // REDUNDANTE
       if (!user) {
         throw new NotFoundException();
       }
 
       return user;
     } catch (error) {
-      if (!id) {
-        throw new NotFoundException("User id can't be empty");
-      }
       handleErrors({ error, message: 'User Id not found' });
     }
   }
 
   async update(id: string, user: User): Promise<User> {
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, user, { new: true })
-      .exec();
+    try {
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(id, user, { new: true })
+        .exec();
 
-    if (!updatedUser) {
-      throw new NotFoundException(`User with id ${id} not found`);
+      if (!updatedUser) {
+        throw new NotFoundException(`User with id ${id} not found`);
+      }
+
+      return updatedUser;
+    } catch (error) {
+      handleErrors({ error });
     }
-
-    return updatedUser;
   }
 }
