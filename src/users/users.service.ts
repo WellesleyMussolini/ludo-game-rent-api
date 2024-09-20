@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { User } from './schemas/users.schema';
+import { User } from 'src/users/schemas/users.schema';
 import { Model } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
 
@@ -36,7 +36,7 @@ export class UsersService {
   async update(id: string, user: User): Promise<User> {
     try {
       const updatedUser = await this.userModel
-        .findByIdAndUpdate(id, user, { new: true })
+        .findByIdAndUpdate(id, user, { new: true, runValidators: true })
         .exec();
 
       if (!updatedUser) {

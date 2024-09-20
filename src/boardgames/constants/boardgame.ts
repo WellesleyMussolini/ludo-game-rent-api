@@ -7,7 +7,7 @@ export const status = [
   'Alugado',
 ];
 
-export const schemaFields = [
+export const boardgameSchemaFields = [
   'name',
   'image',
   'status',

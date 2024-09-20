@@ -1,6 +1,6 @@
-import { Controller, Get, Body, Param, Put, Query } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { User } from './schemas/users.schema';
+import { Controller, Get, Body, Param, Put } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import { User } from 'src/users/schemas/users.schema';
 
 @Controller('users')
 export class UsersController {
@@ -11,8 +11,8 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
-  @Get('search')
-  async findOne(@Query('id') id: string) {
+  @Get('get-by-id/:id')
+  async findOne(@Param('id') id: string) {
     return this.usersService.findById(id);
   }
 
