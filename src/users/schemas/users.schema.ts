@@ -11,11 +11,11 @@ export class User {
   email: string;
 
   @Prop({
-    type: Boolean,
-    required: [true, "The 'emailVerified' field can't be empty."],
-    default: false,
+    type: Date,
+    required: false,
+    default: null,
   })
-  emailVerified: boolean;
+  emailVerified: Date | null;
 
   @Prop({ required: [true, "The 'image' field can't be empty."] })
   image: string;
