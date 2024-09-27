@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
 import { roles } from 'src/users/constants/user';
 
@@ -20,11 +21,16 @@ export class User {
   image: string;
 
   @Prop({
-    enum: roles,
     validate: {
-      validator: function (value: string) {
-        return value && roles.includes(value);
+      validator: (role: string) => {
+        if (!role) {
+          throw new BadRequestException("The field 'role' can't be empty");
+        }
       },
+    },
+    enum: {
+      values: roles,
+      message: `The field 'role' must be one of the following values: ${roles.join(', ')}`,
     },
     required: [true, "The 'role' field can't be empty."],
   })

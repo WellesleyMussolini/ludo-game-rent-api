@@ -1,13 +1,9 @@
 import {
   BadRequestException,
+  InternalServerErrorException,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import {
-  boardgameSchemaFields,
-  status,
-} from 'src/boardgames/constants/boardgame';
-import { roles, userSchemaFields } from 'src/users/constants/user';
 
 type CommonError = {
   response: {
@@ -38,30 +34,12 @@ type HandleErrors = {
   message?: string;
 };
 
-const fieldErrors = (schemaFields: string[], error: Error | any) => {
-  for (const field of schemaFields) {
-    if (error.errors?.[field]?.kind === 'required') {
-      throw new BadRequestException(`The field '${field}' can't be empty`);
-    }
-  }
-};
-
-const enumValidation = (
-  error: Error | any,
-  field: string,
-  validValues: string[],
-) => {
-  if (error.errors?.[field]?.kind === 'enum') {
-    throw new BadRequestException(
-      `The '${field}' field must be one of the following values: ${validValues.join(', ')}`,
-    );
-  }
-};
-
 export function handleErrors({ error, message }: HandleErrors) {
   const notFound = error.status === 404;
   const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
-  const isDatabaseOff = error.status === 500 || error.status === 503;
+  const isInternalServerError = error.status === 500;
+  const isServiceUnavailable = error.status === 503;
+  const isValidationError = error.name === 'ValidationError';
 
   if (notFound) {
     throw new NotFoundException(message);
@@ -71,16 +49,25 @@ export function handleErrors({ error, message }: HandleErrors) {
     throw new BadRequestException('Invalid ID format');
   }
 
-  fieldErrors(boardgameSchemaFields, error);
-  fieldErrors(userSchemaFields, error);
-
-  enumValidation(error, 'status', status);
-  enumValidation(error, 'role', roles);
-
-  if (isDatabaseOff) {
-    throw new ServiceUnavailableException(
-      'The database is offline or overloaded.',
+  if (isInternalServerError) {
+    throw new InternalServerErrorException(
+      'An unexpected server error occurred.',
     );
+  }
+
+  if (isServiceUnavailable) {
+    throw new ServiceUnavailableException(
+      'The server is temporarily unavailable or overloaded.',
+    );
+  }
+
+  if (isValidationError) {
+    const messages = error.errors
+      ? Object.values(error.errors)
+          .map((err: any) => err.message)
+          .join(', ')
+      : error.message;
+    throw new BadRequestException(messages);
   }
 
   throw error;

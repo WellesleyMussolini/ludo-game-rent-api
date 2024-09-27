@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BoardGamesModule } from './boardgames/boardgames.module';
+import { BoardGamesModule } from 'src/boardgames/boardgames.module';
 import * as dotenv from 'dotenv';
-import { UsersModule } from './users/users.module';
+import { UsersModule } from 'src/users/users.module';
 
 dotenv.config();
 

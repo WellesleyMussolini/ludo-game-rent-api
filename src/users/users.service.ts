@@ -29,7 +29,7 @@ export class UsersService {
 
       return user;
     } catch (error) {
-      handleErrors({ error, message: 'User Id not found' });
+      handleErrors({ error, message: 'User id not found' });
     }
   }
 
@@ -40,12 +40,11 @@ export class UsersService {
         .exec();
 
       if (!updatedUser) {
-        throw new NotFoundException(`User with id ${id} not found`);
+        throw new NotFoundException(`User with id '${id}' not found`);
       }
-
       return updatedUser;
     } catch (error) {
-      handleErrors({ error });
+      handleErrors({ error, message: 'User not found' });
     }
   }
 }

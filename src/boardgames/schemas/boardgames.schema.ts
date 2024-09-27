@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
 import { status } from 'src/boardgames/constants/boardgame';
 
@@ -11,10 +12,15 @@ export class BoardGame {
 
   @Prop({
     required: [true, "The 'status' field can't be empty."],
-    enum: status,
+    enum: {
+      values: status,
+      message: `The field 'status' must be one of the following values: ${status.join(', ')}`,
+    },
     validate: {
-      validator: function (value: string) {
-        return value && status.includes(value);
+      validator: (status: string) => {
+        if (!status) {
+          throw new BadRequestException("The field 'role' can't be empty");
+        }
       },
     },
   })
