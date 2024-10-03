@@ -34,20 +34,45 @@ type HandleErrors = {
   message?: string;
 };
 
+function handleBadRequestError(
+  isInvalidId: boolean,
+  isBadFormatObject: boolean,
+  error: Error & { errors?: Record<string, { message: string }> },
+) {
+  if (error.status !== 400) {
+    return;
+  }
+
+  if (isInvalidId) {
+    throw new BadRequestException('Invalid ID format');
+  }
+
+  if (isBadFormatObject) {
+    const messages = error.errors
+      ? Object.values(error.errors)
+          .map((err: any) => err.message)
+          .join(', ')
+      : error.message;
+    throw new BadRequestException(messages);
+  }
+
+  throw new BadRequestException(error.message);
+}
+
 export function handleErrors({ error, message }: HandleErrors) {
   const notFound = error.status === 404;
-  const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
   const isInternalServerError = error.status === 500;
   const isServiceUnavailable = error.status === 503;
+
+  const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
   const isValidationError = error.name === 'ValidationError';
 
   if (notFound) {
     throw new NotFoundException(message);
   }
 
-  if (isIdInvalid) {
-    throw new BadRequestException('Invalid ID format');
-  }
+  // Bad Request Error
+  handleBadRequestError(isIdInvalid, isValidationError, error);
 
   if (isInternalServerError) {
     throw new InternalServerErrorException(
@@ -59,15 +84,6 @@ export function handleErrors({ error, message }: HandleErrors) {
     throw new ServiceUnavailableException(
       'The server is temporarily unavailable or overloaded.',
     );
-  }
-
-  if (isValidationError) {
-    const messages = error.errors
-      ? Object.values(error.errors)
-          .map((err: any) => err.message)
-          .join(', ')
-      : error.message;
-    throw new BadRequestException(messages);
   }
 
   throw error;
