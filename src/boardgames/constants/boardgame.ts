@@ -5,6 +5,7 @@ export const status = [
   'Indisponível',
   'Manutenção',
   'Alugado',
+  'Cópia Fixa',
 ];
 
 export const boardgameSchemaFields = [
