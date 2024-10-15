@@ -43,8 +43,18 @@ export class RentalsService {
   }
 
   async create(rentals: Rentals): Promise<Rentals> {
-    try {
+    const handleCreateRental = async (): Promise<Rentals> => {
       return await new this.rentalModel(rentals).save();
+    };
+    try {
+      if (!rentals.rentalHistory || rentals.rentalHistory.length === 0) {
+        rentals.rentalHistory = [];
+      } else {
+        rentals.rentalHistory = HandleUpdateRentalHistory(
+          rentals.rentalHistory,
+        );
+      }
+      return await handleCreateRental();
     } catch (error) {
       handleErrors({ error });
     }
