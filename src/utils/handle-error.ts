@@ -39,10 +39,6 @@ function handleBadRequestError(
   isBadFormatObject: boolean,
   error: Error & { errors?: Record<string, { message: string }> },
 ) {
-  if (error.status !== 400) {
-    return;
-  }
-
   if (isInvalidId) {
     throw new BadRequestException('Invalid ID format');
   }
@@ -56,7 +52,10 @@ function handleBadRequestError(
     throw new BadRequestException(messages);
   }
 
-  throw new BadRequestException(error.message);
+  // If status is 400 and no specific validation error caught, throw the error
+  if (error.status === 400) {
+    throw new BadRequestException(error.message);
+  }
 }
 
 export function handleErrors({ error, message }: HandleErrors) {
@@ -66,13 +65,16 @@ export function handleErrors({ error, message }: HandleErrors) {
 
   const isIdInvalid = error.kind === 'ObjectId' && error.path === '_id';
   const isValidationError = error.name === 'ValidationError';
+  const isBadRequestError =
+    isValidationError || isIdInvalid || error.status === 400;
 
   if (notFound) {
     throw new NotFoundException(message);
   }
 
-  // Bad Request Error
-  handleBadRequestError(isIdInvalid, isValidationError, error);
+  // Bad Request Error: Handle 400 errors
+  if (isBadRequestError)
+    return handleBadRequestError(isIdInvalid, isValidationError, error);
 
   if (isInternalServerError) {
     throw new InternalServerErrorException(

@@ -6,10 +6,7 @@ import { handleErrors } from 'src/utils/handle-error';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectModel(User.name)
-    private userModel: Model<User>,
-  ) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   async findAll(): Promise<User[]> {
     try {
@@ -38,13 +35,12 @@ export class UsersService {
       const updatedUser = await this.userModel
         .findByIdAndUpdate(id, user, { new: true, runValidators: true })
         .exec();
-
       if (!updatedUser) {
         throw new NotFoundException(`User with id '${id}' not found`);
       }
       return updatedUser;
     } catch (error) {
-      handleErrors({ error, message: 'User not found' });
+      handleErrors({ error });
     }
   }
 }

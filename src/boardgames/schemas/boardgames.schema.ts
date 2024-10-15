@@ -55,6 +55,12 @@ export class BoardGame {
     required: [true, "The 'maximumPlayersToPlay' field can't be empty."],
   })
   maximumPlayersToPlay: string;
+
+  @Prop({
+    required: [true, "The 'rentalDurationDays' field can't be empty."],
+    type: String,
+  })
+  rentalDurationDays: string;
 }
 
 export const BoardGameSchema = SchemaFactory.createForClass(BoardGame);
