@@ -14,18 +14,14 @@ export class RentalStatusUpdaterService {
   // Cron job to run every second
   @Cron(CronExpression.EVERY_SECOND)
   async updateRentalStatusPeriodically(): Promise<void> {
-    try {
-      const allRentals = await this.rentalModel.find().exec();
-      const currentDate = this.getCurrentDateInTimeZone();
+    const allRentals = await this.rentalModel.find().exec();
+    const currentDate = this.getCurrentDateInTimeZone();
 
-      for (const rental of allRentals) {
-        if (rental.rentalHistory && rental.rentalHistory.length > 0) {
-          this.updateRentalHistory(rental.rentalHistory, currentDate);
-          await this.saveUpdatedRental(rental);
-        }
+    for (const rental of allRentals) {
+      if (rental.rentalHistory && rental.rentalHistory.length > 0) {
+        this.updateRentalHistory(rental.rentalHistory, currentDate);
+        await this.saveUpdatedRental(rental);
       }
-    } catch (error) {
-      this.logger.error('Error fetching rentals:', error);
     }
   }
 
@@ -72,16 +68,9 @@ export class RentalStatusUpdaterService {
 
   // Save the updated rental record to the database
   private async saveUpdatedRental(rental: any): Promise<void> {
-    try {
-      await this.rentalModel.updateOne(
-        { _id: rental._id },
-        { rentalHistory: rental.rentalHistory },
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error updating rental with ID: ${rental._id}`,
-        error.message || error,
-      );
-    }
+    await this.rentalModel.updateOne(
+      { _id: rental._id },
+      { rentalHistory: rental.rentalHistory },
+    );
   }
 }
