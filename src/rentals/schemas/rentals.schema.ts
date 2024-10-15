@@ -9,11 +9,11 @@ export class Rentals {
   user: User;
 
   @Prop({
-    type: Array,
+    type: Array<RentalHistory>,
     required: true,
     validate: { validator: HandleRentalValidator },
   })
-  rentalHistory: Array<RentalHistory>;
+  rentalHistory: RentalHistory[];
 }
 
 export const RentalSchema = SchemaFactory.createForClass(Rentals);

@@ -9,7 +9,8 @@ export const HandleRentalValidator = (
   return rentalHistory.every(({ boardgame, rentalStartDate }) => {
     const isValidBoardGame = boardgame && typeof boardgame === 'object';
     const isValidRentalStartDate =
-      rentalStartDate instanceof Date && !isNaN(rentalStartDate.getTime());
+      rentalStartDate === undefined ||
+      (rentalStartDate instanceof Date && !isNaN(rentalStartDate.getTime()));
     return isValidBoardGame && isValidRentalStartDate;
   });
 };
