@@ -3,7 +3,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
 import { Model } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
-import { HandleUpdateRentalHistory } from './services/handle-update-rental-history';
+import { calculateRentalDates } from './services/calculate-rental-dates.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { RentalStatus } from 'src/rentals/types/rental.types';
 
 @Injectable()
 export class RentalsService {
@@ -18,7 +20,11 @@ export class RentalsService {
   }
 
   async update(id: string, rental: Rentals): Promise<Rentals> {
-    const handleUpdateRental = async (): Promise<Rentals> => {
+    try {
+      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
+      rental.rentalStartDate = rentalStartDate;
+      rental.rentalEndDate = rentalEndDate;
+
       const updatedRental = await this.rentalModel
         .findByIdAndUpdate(id, rental, { new: true, runValidators: true })
         .exec();
@@ -26,35 +32,17 @@ export class RentalsService {
         throw new NotFoundException(`Rental with id '${id}' not found`);
       }
       return updatedRental;
-    };
-
-    try {
-      if (!rental.rentalHistory || rental.rentalHistory.length === 0) {
-        rental.rentalHistory = [];
-      } else {
-        rental.rentalHistory = HandleUpdateRentalHistory(rental.rentalHistory);
-      }
-
-      // Update the rental in the database
-      return await handleUpdateRental();
     } catch (error) {
       handleErrors({ error });
     }
   }
 
   async create(rentals: Rentals): Promise<Rentals> {
-    const handleCreateRental = async (): Promise<Rentals> => {
-      return await new this.rentalModel(rentals).save();
-    };
     try {
-      if (!rentals.rentalHistory || rentals.rentalHistory.length === 0) {
-        rentals.rentalHistory = [];
-      } else {
-        rentals.rentalHistory = HandleUpdateRentalHistory(
-          rentals.rentalHistory,
-        );
-      }
-      return await handleCreateRental();
+      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
+      rentals.rentalStartDate = rentalStartDate;
+      rentals.rentalEndDate = rentalEndDate;
+      return await new this.rentalModel(rentals).save();
     } catch (error) {
       handleErrors({ error });
     }
@@ -70,6 +58,36 @@ export class RentalsService {
       }
     } catch (error) {
       handleErrors({ error, message: 'Rental history id not found' });
+    }
+  }
+
+  @Cron(CronExpression.EVERY_SECOND)
+  async handleCron() {
+    const findAllRentals = await this.rentalModel.find().exec();
+
+    const currentDate = new Date();
+
+    for (const rental of findAllRentals) {
+      const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
+
+      // Skip rentals that are already returned
+      if (rental.rentalStatus === RentalStatus.RETURNED) {
+        continue;
+      }
+
+      if (currentDate.toISOString() > rentalEndDate) {
+        // If rental is not already overdue, set it to overdue
+        if (rental.rentalStatus !== RentalStatus.OVERDUE) {
+          rental.rentalStatus = RentalStatus.OVERDUE;
+          await rental.save();
+        }
+      } else {
+        // If the rental was overdue but now the end date is in the future, set it back to active
+        if (rental.rentalStatus === RentalStatus.OVERDUE) {
+          rental.rentalStatus = RentalStatus.ACTIVE;
+          await rental.save();
+        }
+      }
     }
   }
 }
