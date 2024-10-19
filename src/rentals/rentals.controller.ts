@@ -19,6 +19,16 @@ export class RentalsController {
     return this.rentalsService.findAll();
   }
 
+  @Get('get-rentals-by-id/:id')
+  async getRentalById(@Param('id') id: string) {
+    return this.rentalsService.findRentalById(id);
+  }
+
+  @Get('get-rentals-by-user/:userId')
+  async getUserById(@Param('userId') userId: string) {
+    return this.rentalsService.findUserById(userId);
+  }
+
   @Put(':id')
   update(@Param('id') id: string, @Body() rentals: Rentals) {
     return this.rentalsService.update(id, rentals);

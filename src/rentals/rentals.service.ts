@@ -19,6 +19,34 @@ export class RentalsService {
     }
   }
 
+  async findRentalById(id: string): Promise<Rentals> {
+    try {
+      const rentals = await this.rentalModel.findById(id).exec();
+
+      if (!rentals) {
+        throw new NotFoundException();
+      }
+
+      return rentals;
+    } catch (error) {
+      handleErrors({ error, message: `Rentals id not found` });
+    }
+  }
+
+  async findUserById(userId: string): Promise<Rentals[]> {
+    try {
+      const rentals = await this.rentalModel.find({ userId }).exec();
+
+      if (!rentals || rentals.length === 0) {
+        throw new NotFoundException(`No rentals found for userId: '${userId}'`);
+      }
+
+      return rentals;
+    } catch (error) {
+      handleErrors({ error });
+    }
+  }
+
   async update(id: string, rental: Rentals): Promise<Rentals> {
     try {
       const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
