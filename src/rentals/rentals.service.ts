@@ -6,6 +6,7 @@ import { handleErrors } from 'src/utils/handle-error';
 import { calculateRentalDates } from './services/calculate-rental-dates.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
+import { sortRentals } from './services/sorter-rentals.service';
 
 @Injectable()
 export class RentalsService {
@@ -13,7 +14,8 @@ export class RentalsService {
 
   async findAll(): Promise<Rentals[]> {
     try {
-      return await this.rentalModel.find().exec();
+      const rentals: Rentals[] = await this.rentalModel.find().exec();
+      return sortRentals(rentals);
     } catch (error) {
       handleErrors({ error });
     }
@@ -21,7 +23,7 @@ export class RentalsService {
 
   async findRentalById(id: string): Promise<Rentals> {
     try {
-      const rentals = await this.rentalModel.findById(id).exec();
+      const rentals: Rentals = await this.rentalModel.findById(id).exec();
 
       if (!rentals) {
         throw new NotFoundException();
@@ -35,13 +37,13 @@ export class RentalsService {
 
   async findUserById(userId: string): Promise<Rentals[]> {
     try {
-      const rentals = await this.rentalModel.find({ userId }).exec();
+      const rentals: Rentals[] = await this.rentalModel.find({ userId }).exec();
 
       if (!rentals || rentals.length === 0) {
         throw new NotFoundException(`No rentals found for userId: '${userId}'`);
       }
 
-      return rentals;
+      return sortRentals(rentals);
     } catch (error) {
       handleErrors({ error });
     }
