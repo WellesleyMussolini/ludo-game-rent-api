@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
 import { roles } from 'src/users/constants/user';
+import { cpf } from 'cpf-cnpj-validator';
 
 @Schema({ collection: 'user' })
 export class User {
@@ -10,8 +11,18 @@ export class User {
   @Prop({ required: [true, "The 'email' field can't be empty."] })
   email: string;
 
-  @Prop({ required: false, type: Number })
-  cpf: number | null;
+  @Prop({
+    type: String,
+    required: false,
+    default: null,
+    validate: {
+      validator: (userCpf: string | null) => {
+        return userCpf === null || cpf.isValid(userCpf);
+      },
+      message: "The 'CPF' value is not valid.",
+    },
+  })
+  cpf: string | null;
 
   @Prop({
     type: Date,
