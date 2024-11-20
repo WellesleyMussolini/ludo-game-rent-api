@@ -10,6 +10,9 @@ export class User {
   @Prop({ required: [true, "The 'email' field can't be empty."] })
   email: string;
 
+  @Prop({ required: false, type: Number })
+  cpf: number | null;
+
   @Prop({
     type: Date,
     required: false,
