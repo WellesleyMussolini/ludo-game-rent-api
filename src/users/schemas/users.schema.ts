@@ -14,12 +14,11 @@ export class User {
   @Prop({
     type: String,
     required: false,
+    unique: true,
     default: null,
     validate: {
-      validator: (userCpf: string | null) => {
-        return userCpf === null || cpf.isValid(userCpf);
-      },
-      message: "The 'CPF' value is not valid.",
+      validator: (userCPF) => cpf.isValid(userCPF),
+      message: "Invalid 'CPF' format",
     },
   })
   cpf: string | null;
