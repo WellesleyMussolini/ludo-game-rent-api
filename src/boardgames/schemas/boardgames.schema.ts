@@ -61,6 +61,26 @@ export class BoardGame {
     type: String,
   })
   rentalDurationDays: string;
+
+  @Prop({
+    required: [true, "The 'availableCopies' field can't be empty."],
+    validate: {
+      validator: (copies: string) => {
+        const convertToNumber = parseInt(copies, 10);
+        return !isNaN(convertToNumber) && convertToNumber > 0;
+      },
+      message: "The field 'availableCopies' must be a positive number.",
+    },
+    type: String,
+  })
+  availableCopies: string;
+
+  @Prop({
+    required: true,
+    type: String,
+    default: '0',
+  })
+  rentedGames: string;
 }
 
 export const BoardGameSchema = SchemaFactory.createForClass(BoardGame);

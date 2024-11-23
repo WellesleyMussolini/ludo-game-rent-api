@@ -1,11 +1,13 @@
+import { Status } from 'src/types/status.types';
+
 export const status = [
-  'Disponível',
-  'Reservado',
-  'Quarentena',
-  'Indisponível',
-  'Manutenção',
-  'Alugado',
-  'Cópia Fixa',
+  Status.AVAILABLE,
+  Status.FIXED_COPY,
+  Status.MAINTENANCE,
+  Status.QUARANTINE,
+  Status.RENT,
+  Status.RESERVED,
+  Status.UNAVAILABLE,
 ];
 
 export const boardgameSchemaFields = [

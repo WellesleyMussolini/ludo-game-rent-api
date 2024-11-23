@@ -18,5 +18,6 @@ import { BoardGamesController } from 'src/boardgames/boardgames.controller';
   ],
   providers: [BoardGamesService],
   controllers: [BoardGamesController],
+  exports: [MongooseModule],
 })
 export class BoardGamesModule {}

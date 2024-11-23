@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
 import { Model } from 'mongoose';
@@ -7,10 +11,14 @@ import { calculateRentalDates } from './services/calculate-rental-dates.service'
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
 import { sortRentals } from './services/sorter-rentals.service';
+import { SharedService } from 'src/shared/shared.service';
 
 @Injectable()
 export class RentalsService {
-  constructor(@InjectModel(Rentals.name) private rentalModel: Model<Rentals>) {}
+  constructor(
+    @InjectModel(Rentals.name) private rentalModel: Model<Rentals>,
+    private readonly sharedService: SharedService,
+  ) {}
 
   async findAll(): Promise<Rentals[]> {
     try {
@@ -49,30 +57,28 @@ export class RentalsService {
     }
   }
 
-  async update(id: string, rental: Rentals): Promise<Rentals> {
-    try {
-      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
-      rental.rentalStartDate = rentalStartDate;
-      rental.rentalEndDate = rentalEndDate;
-
-      const updatedRental = await this.rentalModel
-        .findByIdAndUpdate(id, rental, { new: true, runValidators: true })
-        .exec();
-      if (!updatedRental) {
-        throw new NotFoundException(`Rental with id '${id}' not found`);
-      }
-      return updatedRental;
-    } catch (error) {
-      handleErrors({ error });
-    }
-  }
-
   async create(rentals: Rentals): Promise<Rentals> {
     try {
       const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
       rentals.rentalStartDate = rentalStartDate;
       rentals.rentalEndDate = rentalEndDate;
-      return await new this.rentalModel(rentals).save();
+
+      const result = await this.sharedService.createRental(rentals);
+      if (typeof result === 'string') throw new BadRequestException(result);
+
+      return result;
+    } catch (error) {
+      handleErrors({ error });
+    }
+  }
+
+  async update(id: string, rental: Rentals): Promise<void> {
+    try {
+      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
+      rental.rentalStartDate = rentalStartDate;
+      rental.rentalEndDate = rentalEndDate;
+
+      await this.sharedService.updateRental(id, rental);
     } catch (error) {
       handleErrors({ error });
     }
@@ -80,12 +86,14 @@ export class RentalsService {
 
   async remove(id: string): Promise<void> {
     try {
-      const result = await this.rentalModel.findByIdAndDelete(id).exec();
-      if (!result) {
+      const rental = await this.rentalModel.findByIdAndDelete(id).exec();
+      if (!rental) {
         throw new NotFoundException(
           `Rental history with id: "${id}" not found`,
         );
       }
+
+      await this.sharedService.deleteRental(rental);
     } catch (error) {
       handleErrors({ error, message: 'Rental history id not found' });
     }
