@@ -5,18 +5,20 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
-import { Model } from 'mongoose';
+import mongoose, { Model } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
 import { calculateRentalDates } from './services/calculate-rental-dates.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
 import { sortRentals } from './services/sorter-rentals.service';
 import { UpdateRentedGames } from './services/update-rented-games.service';
+import { User } from 'src/users/schemas/users.schema';
 
 @Injectable()
 export class RentalsService {
   constructor(
     @InjectModel(Rentals.name) private rentalModel: Model<Rentals>,
+    @InjectModel(User.name) private userModel: Model<User>, // Correct model injection
     private readonly updateRentedGames: UpdateRentedGames,
   ) {}
 
@@ -57,22 +59,56 @@ export class RentalsService {
     }
   }
 
-  // Create a rental
   async create(rentals: Rentals): Promise<Rentals> {
     try {
+      const { userId } = rentals;
+
+      // Validate user ID
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(userId);
+
+      // Fetch the board game details
       const boardgame = await this.updateRentedGames.fetchBoardGame(rentals);
 
-      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
-      rentals.rentalStartDate = rentalStartDate;
-      rentals.rentalEndDate = rentalEndDate;
+      // Fetch the user details
+      const user = await this.userModel.findById(userId).exec();
 
+      const isCpfNotFound = !user.cpf;
+
+      // Check if the board game is sold out
       const isSoldOut =
         parseInt(boardgame.rentedGames, 10) >=
         parseInt(boardgame.availableCopies, 10);
 
-      if (isSoldOut)
-        throw new BadRequestException(`The BoardGame has been sold out!`);
+      // Calculate rental start and end dates
+      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
+      rentals.rentalStartDate = rentalStartDate;
+      rentals.rentalEndDate = rentalEndDate;
 
+      if (!isValidObjectId) {
+        throw new BadRequestException(`Invalid user ID: ${userId}`);
+      }
+
+      const isUserNotFound = !user;
+
+      if (isUserNotFound) {
+        throw new BadRequestException(`User with ID ${userId} not found.`);
+      }
+
+      // Validate user CPF
+      if (isCpfNotFound) {
+        throw new BadRequestException(
+          `You can't rent a game without your CPF registered.`,
+        );
+      }
+
+      if (isSoldOut) {
+        throw new BadRequestException(`The board game has been sold out!`);
+      }
+
+      // Set the user's CPF in the rental data
+      rentals.userCpf = user.cpf;
+
+      // Increment the rented game count
       await this.updateRentedGames.updateRentedGame(boardgame, 1);
 
       return await new this.rentalModel(rentals).save();
@@ -81,7 +117,6 @@ export class RentalsService {
     }
   }
 
-  // Update a rental
   async update(id: string, rental: Rentals): Promise<Rentals> {
     try {
       const boardgame = await this.updateRentedGames.fetchBoardGame(rental);
@@ -155,7 +190,6 @@ export class RentalsService {
     }
   }
 
-  // Remove a rental
   async remove(id: string): Promise<Rentals> {
     try {
       const rental = await this.updateRentedGames.fetchRentalById(id);

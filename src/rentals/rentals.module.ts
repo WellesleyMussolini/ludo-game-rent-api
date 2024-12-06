@@ -5,6 +5,8 @@ import { RentalsService } from './rentals.service';
 import { RentalsController } from './rentals.controller';
 import { BoardGamesModule } from 'src/boardgames/boardgames.module';
 import { UpdateRentedGames } from './services/update-rented-games.service';
+import { UsersModule } from 'src/users/users.module';
+import { User, UsersSchema } from 'src/users/schemas/users.schema';
 
 @Module({
   imports: [
@@ -13,8 +15,13 @@ import { UpdateRentedGames } from './services/update-rented-games.service';
         name: Rentals.name,
         schema: RentalSchema,
       },
+      {
+        name: User.name,
+        schema: UsersSchema,
+      },
     ]),
     BoardGamesModule,
+    UsersModule,
   ],
   providers: [RentalsService, UpdateRentedGames],
   controllers: [RentalsController],

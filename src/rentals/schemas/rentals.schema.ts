@@ -11,6 +11,9 @@ export class Rentals {
   userName: string;
 
   @Prop({ type: String, required: true })
+  userCpf: string;
+
+  @Prop({ type: String, required: true })
   userImage: string;
 
   @Prop({ type: String, required: true })
