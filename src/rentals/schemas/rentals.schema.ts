@@ -42,6 +42,9 @@ export class Rentals {
   })
   rentalStatus?: RentalStatus;
 
+  @Prop({ type: Date, required: false })
+  returnedAt?: Date;
+
   @Prop({ type: String, required: true })
   price: string;
 }

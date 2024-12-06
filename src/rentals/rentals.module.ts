@@ -3,7 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Rentals, RentalSchema } from './schemas/rentals.schema';
 import { RentalsService } from './rentals.service';
 import { RentalsController } from './rentals.controller';
-import { SharedModule } from 'src/shared/shared.module';
+import { BoardGamesModule } from 'src/boardgames/boardgames.module';
+import { UpdateRentedGames } from './services/update-rented-games.service';
 
 @Module({
   imports: [
@@ -13,9 +14,9 @@ import { SharedModule } from 'src/shared/shared.module';
         schema: RentalSchema,
       },
     ]),
-    SharedModule,
+    BoardGamesModule,
   ],
-  providers: [RentalsService],
+  providers: [RentalsService, UpdateRentedGames],
   controllers: [RentalsController],
   exports: [MongooseModule],
 })
