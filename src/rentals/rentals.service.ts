@@ -11,7 +11,13 @@ import { User } from 'src/users/schemas/users.schema';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { fetchBoardGameById } from 'src/boardgames/utils/fetch-boardgame-by-id';
 import { updateRentedGame } from './services/update-rented-games.service';
-import { validateRentalExists, validations } from './utils/validations';
+import { validations } from './utils/validations';
+import { sortByStatusPriority } from 'src/utils/sort-by-status';
+const rentalStatusOrder = {
+  overdue: 1,
+  active: 2,
+  returned: 3,
+};
 
 @Injectable()
 export class RentalsService {
@@ -23,8 +29,15 @@ export class RentalsService {
 
   async findAll(): Promise<Rentals[]> {
     try {
-      const rentals: Rentals[] = await this.rentalModel.find().exec();
-      return sortRentals(rentals);
+      const sortingPipeline = sortByStatusPriority(
+        'rentalStatus',
+        rentalStatusOrder,
+      );
+
+      const rentals: Rentals[] =
+        await this.rentalModel.aggregate(sortingPipeline);
+
+      return rentals;
     } catch (error) {
       handleErrors({ error });
     }
@@ -44,8 +57,9 @@ export class RentalsService {
     }
   }
 
-  async findUserById(userId: string): Promise<Rentals[]> {
+  async findRentalsByUserById(userId: string): Promise<Rentals[]> {
     try {
+      // Vamos verificar esse juntos na próxima semana
       const rentals: Rentals[] = await this.rentalModel.find({ userId }).exec();
 
       const isNotFound: boolean = !rentals;
