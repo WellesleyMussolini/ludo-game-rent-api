@@ -4,7 +4,7 @@ import { Rentals } from './schemas/rentals.schema';
 import { Model } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
 import { calculateRentalDates } from './services/calculate-rental-dates.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
+// import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
 import { sortRentals } from './utils/sorter-rentals';
 import { User } from 'src/users/schemas/users.schema';
@@ -12,6 +12,13 @@ import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { fetchBoardGameById } from 'src/boardgames/utils/fetch-boardgame-by-id';
 import { updateRentedGame } from './services/update-rented-games.service';
 import { validations } from './utils/validations';
+import { sortByStatusPriority } from 'src/utils/sort-by-status';
+
+const rentalStatusOrder = {
+  overdue: 1,
+  active: 2,
+  returned: 3,
+};
 
 @Injectable()
 export class RentalsService {
@@ -23,8 +30,15 @@ export class RentalsService {
 
   async findAll(): Promise<Rentals[]> {
     try {
-      const rentals: Rentals[] = await this.rentalModel.find().exec();
-      return sortRentals(rentals);
+      const sortingPipeline = sortByStatusPriority(
+        'rentalStatus',
+        rentalStatusOrder,
+      );
+
+      const rentals: Rentals[] =
+        await this.rentalModel.aggregate(sortingPipeline);
+
+      return rentals;
     } catch (error) {
       handleErrors({ error });
     }
@@ -44,7 +58,7 @@ export class RentalsService {
     }
   }
 
-  async findUserById(userId: string): Promise<Rentals[]> {
+  async findRentalsByUserById(userId: string): Promise<Rentals[]> {
     try {
       const rentals: Rentals[] = await this.rentalModel.find({ userId }).exec();
 
