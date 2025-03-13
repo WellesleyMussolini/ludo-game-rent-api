@@ -11,7 +11,7 @@ import { User } from 'src/users/schemas/users.schema';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { fetchBoardGameById } from 'src/boardgames/utils/fetch-boardgame-by-id';
 import { updateRentedGame } from './services/update-rented-games.service';
-import { validateRentalExists, validations } from './utils/validations';
+import { validations } from './utils/validations';
 
 @Injectable()
 export class RentalsService {
@@ -177,41 +177,41 @@ export class RentalsService {
     }
   }
 
-  @Cron(CronExpression.EVERY_12_HOURS)
-  async verifyRentalStatus() {
-    const findAllRentals = await this.rentalModel.find().exec();
-    const currentDate = new Date().toISOString();
+  // @Cron(CronExpression.EVERY_12_HOURS)
+  // async verifyRentalStatus() {
+  //   const findAllRentals = await this.rentalModel.find().exec();
+  //   const currentDate = new Date().toISOString();
 
-    for (const rental of findAllRentals) {
-      const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
+  //   for (const rental of findAllRentals) {
+  //     const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
 
-      const isGameReturned = rental.rentalStatus === RentalStatus.RETURNED;
+  //     const isGameReturned = rental.rentalStatus === RentalStatus.RETURNED;
 
-      const isGameOverdue =
-        currentDate > rentalEndDate &&
-        rental.rentalStatus !== RentalStatus.OVERDUE;
+  //     const isGameOverdue =
+  //       currentDate > rentalEndDate &&
+  //       rental.rentalStatus !== RentalStatus.OVERDUE;
 
-      const isGameActive =
-        currentDate <= rentalEndDate &&
-        rental.rentalStatus === RentalStatus.OVERDUE;
+  //     const isGameActive =
+  //       currentDate <= rentalEndDate &&
+  //       rental.rentalStatus === RentalStatus.OVERDUE;
 
-      // Skip rentals that are already returned
-      if (isGameReturned) {
-        continue;
-      }
+  //     // Skip rentals that are already returned
+  //     if (isGameReturned) {
+  //       continue;
+  //     }
 
-      // Set rental status to OVERDUE if current date is past rental end date
-      if (isGameOverdue) {
-        rental.rentalStatus = RentalStatus.OVERDUE;
-        await rental.save();
-        continue; // Skip to the next iteration after updating
-      }
+  //     // Set rental status to OVERDUE if current date is past rental end date
+  //     if (isGameOverdue) {
+  //       rental.rentalStatus = RentalStatus.OVERDUE;
+  //       await rental.save();
+  //       continue; // Skip to the next iteration after updating
+  //     }
 
-      // Set rental status to ACTIVE if it was overdue but the end date is in the future
-      if (isGameActive) {
-        rental.rentalStatus = RentalStatus.ACTIVE;
-        await rental.save();
-      }
-    }
-  }
+  //     // Set rental status to ACTIVE if it was overdue but the end date is in the future
+  //     if (isGameActive) {
+  //       rental.rentalStatus = RentalStatus.ACTIVE;
+  //       await rental.save();
+  //     }
+  //   }
+  // }
 }
