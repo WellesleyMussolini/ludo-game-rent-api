@@ -1,31 +1,44 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
-import mongoose, { Model } from 'mongoose';
+import { Model } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
 import { calculateRentalDates } from './services/calculate-rental-dates.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
+// import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
-import { sortRentals } from './services/sorter-rentals.service';
-import { UpdateRentedGames } from './services/update-rented-games.service';
+import { sortRentals } from './utils/sorter-rentals';
 import { User } from 'src/users/schemas/users.schema';
+import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
+import { fetchBoardGameById } from 'src/boardgames/utils/fetch-boardgame-by-id';
+import { updateRentedGame } from './services/update-rented-games.service';
+import { validations } from './utils/validations';
+import { sortByStatusPriority } from 'src/utils/sort-by-status';
+
+const rentalStatusOrder = {
+  overdue: 1,
+  active: 2,
+  returned: 3,
+};
 
 @Injectable()
 export class RentalsService {
   constructor(
     @InjectModel(Rentals.name) private rentalModel: Model<Rentals>,
-    @InjectModel(User.name) private userModel: Model<User>, // Correct model injection
-    private readonly updateRentedGames: UpdateRentedGames,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(BoardGame.name) private boardGameModel: Model<BoardGame>,
   ) {}
 
   async findAll(): Promise<Rentals[]> {
     try {
-      const rentals: Rentals[] = await this.rentalModel.find().exec();
-      return sortRentals(rentals);
+      const sortingPipeline = sortByStatusPriority(
+        'rentalStatus',
+        rentalStatusOrder,
+      );
+
+      const rentals: Rentals[] =
+        await this.rentalModel.aggregate(sortingPipeline);
+
+      return rentals;
     } catch (error) {
       handleErrors({ error });
     }
@@ -33,83 +46,57 @@ export class RentalsService {
 
   async findRentalById(id: string): Promise<Rentals> {
     try {
-      const rentals: Rentals = await this.rentalModel.findById(id).exec();
+      const rental: Rentals | null = await this.rentalModel.findById(id).exec();
 
-      if (!rentals) {
-        throw new NotFoundException();
-      }
+      const isNotFound: boolean = !rental;
 
-      return rentals;
+      if (isNotFound) throw new NotFoundException();
+
+      return rental;
     } catch (error) {
-      handleErrors({ error, message: `Rentals id not found` });
+      handleErrors({ error, message: `Rental id was not found.` });
     }
   }
 
-  async findUserById(userId: string): Promise<Rentals[]> {
+  async findRentalsByUserById(userId: string): Promise<Rentals[]> {
     try {
       const rentals: Rentals[] = await this.rentalModel.find({ userId }).exec();
 
-      if (!rentals || rentals.length === 0) {
-        throw new NotFoundException(`No rentals found for userId: '${userId}'`);
-      }
+      const isNotFound: boolean = !rentals;
+
+      if (isNotFound) throw new NotFoundException();
 
       return sortRentals(rentals);
     } catch (error) {
-      handleErrors({ error });
+      handleErrors({ error, message: 'User rental id not found' });
     }
   }
 
   async create(rentals: Rentals): Promise<Rentals> {
     try {
-      const { userId } = rentals;
+      const { boardgameId, userId } = rentals;
 
-      // Validate user ID
-      const isValidObjectId = mongoose.Types.ObjectId.isValid(userId);
+      const boardgame: BoardGame = await fetchBoardGameById({
+        boardGameModel: this.boardGameModel,
+        boardgameId: boardgameId,
+      });
 
-      // Fetch the board game details
-      const boardgame = await this.updateRentedGames.fetchBoardGame(rentals);
+      const user: User | null = await this.userModel.findById(userId).exec();
 
-      // Fetch the user details
-      const user = await this.userModel.findById(userId).exec();
-
-      const isCpfNotFound = !user.cpf;
-
-      // Check if the board game is sold out
-      const isSoldOut =
-        parseInt(boardgame.rentedGames, 10) >=
-        parseInt(boardgame.availableCopies, 10);
-
-      // Calculate rental start and end dates
       const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
+
+      validations.isUserValid({ id: userId, cpf: user.cpf });
+      validations.isGameSoldOut({ boardgame: boardgame });
+
       rentals.rentalStartDate = rentalStartDate;
       rentals.rentalEndDate = rentalEndDate;
-
-      if (!isValidObjectId) {
-        throw new BadRequestException(`Invalid user ID: ${userId}`);
-      }
-
-      const isUserNotFound = !user;
-
-      if (isUserNotFound) {
-        throw new BadRequestException(`User with ID ${userId} not found.`);
-      }
-
-      // Validate user CPF
-      if (isCpfNotFound) {
-        throw new BadRequestException(
-          `You can't rent a game without your CPF registered.`,
-        );
-      }
-
-      if (isSoldOut) {
-        throw new BadRequestException(`The board game has been sold out!`);
-      }
-
-      // Set the user's CPF in the rental data
       rentals.userCpf = user.cpf;
 
-      // Increment the rented game count
-      await this.updateRentedGames.updateRentedGame(boardgame, 1);
+      await updateRentedGame({
+        boardgame,
+        adjust: 1,
+        boardGameModel: this.boardGameModel,
+      });
 
       return await new this.rentalModel(rentals).save();
     } catch (error) {
@@ -119,70 +106,63 @@ export class RentalsService {
 
   async update(id: string, rental: Rentals): Promise<Rentals> {
     try {
-      const boardgame = await this.updateRentedGames.fetchBoardGame(rental);
-      const existingRental = await this.updateRentedGames.fetchRentalById(id);
+      const { boardgameId } = rental;
+
+      const boardgame: BoardGame = await fetchBoardGameById({
+        boardgameId,
+        boardGameModel: this.boardGameModel,
+      });
+
+      const rentalFound: Rentals = await this.findRentalById(id);
 
       const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
-      rental.rentalStartDate = rentalStartDate;
-      rental.rentalEndDate = rentalEndDate;
 
-      // Check if `returnedAt` is invalid (missing or before `rentalStartDate`)
-      const isReturnedAtInvalid =
-        rental.rentalStatus === RentalStatus.RETURNED &&
-        (!rental.returnedAt ||
-          new Date(rental.returnedAt) <= new Date(rental.rentalStartDate));
+      const updatedRental: Rentals = await this.rentalModel
+        .findByIdAndUpdate(id, rental, { new: true, runValidators: true })
+        .exec();
 
-      // Check if status is transitioning from RETURNED to another status (ACTIVE or OVERDUE)
-      const isStatusChangingFromReturned =
-        existingRental.rentalStatus === RentalStatus.RETURNED &&
-        rental.rentalStatus !== RentalStatus.RETURNED;
+      const isCurrentlyReturned = rental.rentalStatus === RentalStatus.RETURNED;
 
-      // Check if `returnedAt` is provided with a status other than RETURNED
-      const isReturnedAtProvidedWithWrongStatus =
-        rental.rentalStatus !== RentalStatus.RETURNED && rental.returnedAt;
+      const wasPreviouslyReturned =
+        rentalFound.rentalStatus === RentalStatus.RETURNED;
 
-      // Check if status is transitioning to RETURNED from another status
-      const isStatusChangingToReturned =
-        rental.rentalStatus === RentalStatus.RETURNED &&
-        existingRental.rentalStatus !== RentalStatus.RETURNED;
+      const wasPreviouslyReturnedAndNowNot =
+        wasPreviouslyReturned && !isCurrentlyReturned;
 
-      // Validate returnedAt if invalid
-      if (isReturnedAtInvalid) {
-        throw new BadRequestException(
-          `The field 'returnedAt' must be provided and cannot be earlier than 'rentalStartDate' when the status is 'returned'.`,
-        );
-      }
+      const isCurrentlyReturnedAndWasNot =
+        isCurrentlyReturned && !wasPreviouslyReturned;
 
-      // Prevent setting `returnedAt` for non-RETURNED status
-      if (isReturnedAtProvidedWithWrongStatus) {
-        throw new BadRequestException(
-          `You can't provide the 'returnedAt' field unless the 'rentalStatus' is 'returned'.`,
-        );
-      }
+      validations.isReturnedAtEmpty({
+        isCurrentlyReturned: isCurrentlyReturned,
+        rentalReturnedAt: rental.returnedAt,
+        rentalStartDate: rentalStartDate,
+      });
+      validations.isReturnedAtValid({
+        isCurrentlyReturned: isCurrentlyReturned,
+        rentalReturnedAt: rental.returnedAt,
+      });
+      validations.isRentalFound({ rental: rental });
 
-      // Increment rented game count if status is changing away from RETURNED
-      if (isStatusChangingFromReturned) {
-        await this.updateRentedGames.updateRentedGame(boardgame, +1);
-
-        // Remove `returnedAt` field using $unset
+      if (wasPreviouslyReturnedAndNowNot) {
+        await updateRentedGame({
+          boardgame,
+          boardGameModel: this.boardGameModel,
+          adjust: +1,
+        });
         await this.rentalModel.updateOne(
           { _id: id },
           { $unset: { returnedAt: '' } },
         );
+      } else if (isCurrentlyReturnedAndWasNot) {
+        await updateRentedGame({
+          boardgame,
+          boardGameModel: this.boardGameModel,
+          adjust: -1,
+        });
       }
 
-      // Decrement rented game count if status is changing to RETURNED
-      if (isStatusChangingToReturned) {
-        await this.updateRentedGames.updateRentedGame(boardgame, -1);
-      }
-
-      const updatedRental = await this.rentalModel
-        .findByIdAndUpdate(id, rental, { new: true, runValidators: true })
-        .exec();
-
-      if (!updatedRental) {
-        throw new NotFoundException(`Rental with id '${id}' not found.`);
-      }
+      rental.rentalStartDate = rentalStartDate;
+      rental.rentalEndDate = rentalEndDate;
 
       return updatedRental;
     } catch (error) {
@@ -192,9 +172,18 @@ export class RentalsService {
 
   async remove(id: string): Promise<Rentals> {
     try {
-      const rental = await this.updateRentedGames.fetchRentalById(id);
-      const boardgame = await this.updateRentedGames.fetchBoardGame(rental);
-      await this.updateRentedGames.updateRentedGame(boardgame, -1);
+      const rental: Rentals = await this.findRentalById(id);
+
+      const boardgame: BoardGame = await fetchBoardGameById({
+        boardgameId: rental.boardgameId,
+        boardGameModel: this.boardGameModel,
+      });
+
+      await updateRentedGame({
+        boardgame,
+        adjust: -1,
+        boardGameModel: this.boardGameModel,
+      });
 
       return await this.rentalModel.findByIdAndDelete(id).exec();
     } catch (error) {
@@ -202,41 +191,41 @@ export class RentalsService {
     }
   }
 
-  @Cron(CronExpression.EVERY_12_HOURS)
-  async verifyRentalStatus() {
-    const findAllRentals = await this.rentalModel.find().exec();
-    const currentDate = new Date().toISOString();
+  // @Cron(CronExpression.EVERY_12_HOURS)
+  // async verifyRentalStatus() {
+  //   const findAllRentals = await this.rentalModel.find().exec();
+  //   const currentDate = new Date().toISOString();
 
-    for (const rental of findAllRentals) {
-      const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
+  //   for (const rental of findAllRentals) {
+  //     const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
 
-      const isGameReturned = rental.rentalStatus === RentalStatus.RETURNED;
+  //     const isGameReturned = rental.rentalStatus === RentalStatus.RETURNED;
 
-      const isGameOverdue =
-        currentDate > rentalEndDate &&
-        rental.rentalStatus !== RentalStatus.OVERDUE;
+  //     const isGameOverdue =
+  //       currentDate > rentalEndDate &&
+  //       rental.rentalStatus !== RentalStatus.OVERDUE;
 
-      const isGameActive =
-        currentDate <= rentalEndDate &&
-        rental.rentalStatus === RentalStatus.OVERDUE;
+  //     const isGameActive =
+  //       currentDate <= rentalEndDate &&
+  //       rental.rentalStatus === RentalStatus.OVERDUE;
 
-      // Skip rentals that are already returned
-      if (isGameReturned) {
-        continue;
-      }
+  //     // Skip rentals that are already returned
+  //     if (isGameReturned) {
+  //       continue;
+  //     }
 
-      // Set rental status to OVERDUE if current date is past rental end date
-      if (isGameOverdue) {
-        rental.rentalStatus = RentalStatus.OVERDUE;
-        await rental.save();
-        continue; // Skip to the next iteration after updating
-      }
+  //     // Set rental status to OVERDUE if current date is past rental end date
+  //     if (isGameOverdue) {
+  //       rental.rentalStatus = RentalStatus.OVERDUE;
+  //       await rental.save();
+  //       continue; // Skip to the next iteration after updating
+  //     }
 
-      // Set rental status to ACTIVE if it was overdue but the end date is in the future
-      if (isGameActive) {
-        rental.rentalStatus = RentalStatus.ACTIVE;
-        await rental.save();
-      }
-    }
-  }
+  //     // Set rental status to ACTIVE if it was overdue but the end date is in the future
+  //     if (isGameActive) {
+  //       rental.rentalStatus = RentalStatus.ACTIVE;
+  //       await rental.save();
+  //     }
+  //   }
+  // }
 }

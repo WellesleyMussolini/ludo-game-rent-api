@@ -4,7 +4,6 @@ import { Rentals, RentalSchema } from './schemas/rentals.schema';
 import { RentalsService } from './rentals.service';
 import { RentalsController } from './rentals.controller';
 import { BoardGamesModule } from 'src/boardgames/boardgames.module';
-import { UpdateRentedGames } from './services/update-rented-games.service';
 import { UsersModule } from 'src/users/users.module';
 import { User, UsersSchema } from 'src/users/schemas/users.schema';
 
@@ -23,7 +22,7 @@ import { User, UsersSchema } from 'src/users/schemas/users.schema';
     BoardGamesModule,
     UsersModule,
   ],
-  providers: [RentalsService, UpdateRentedGames],
+  providers: [RentalsService],
   controllers: [RentalsController],
   exports: [MongooseModule],
 })

@@ -26,7 +26,7 @@ export class RentalsController {
 
   @Get('get-rentals-by-user/:userId')
   async getUserById(@Param('userId') userId: string) {
-    return this.rentalsService.findUserById(userId);
+    return this.rentalsService.findRentalsByUserById(userId);
   }
 
   @Put(':id')
