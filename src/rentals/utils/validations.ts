@@ -1,36 +1,20 @@
-import { BadRequestException } from '@nestjs/common';
-import mongoose, { Types } from 'mongoose';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { Rentals } from '../schemas/rentals.schema';
+import { RentalStatus } from '../types/rental.types';
+import { User } from 'src/users/schemas/users.schema';
 
 export const validations = {
-  isUserValid: ({
-    id,
-    cpf,
-  }: {
-    id: string | Types.ObjectId;
-    cpf: string | null;
-  }): boolean => {
-    const isIdValid: boolean = !mongoose.Types.ObjectId.isValid(id);
-    const isIdNotFound: boolean = !id;
-    const isCpfNotFound: boolean = !cpf;
-
-    if (isIdValid) {
-      throw new BadRequestException(`Invalid user id`);
-    }
-
-    if (isIdNotFound) {
-      throw new BadRequestException(`User id not found.`);
-    }
-
-    if (isCpfNotFound) {
+  isUserCpfValid: (cpf: string | null): boolean => {
+    if (!cpf) {
       throw new BadRequestException(
         `You can't rent a game without your CPF registered.`,
       );
     }
     return true;
   },
-  isGameSoldOut: ({ boardgame }: { boardgame: BoardGame }): boolean => {
+
+  isGameSoldOut: (boardgame: BoardGame): boolean => {
     if (
       parseInt(boardgame.rentedGames, 10) >=
       parseInt(boardgame.availableCopies, 10)
@@ -39,6 +23,7 @@ export const validations = {
     }
     return true;
   },
+
   isReturnedAtEmpty: ({
     isCurrentlyReturned,
     rentalReturnedAt,
@@ -50,7 +35,7 @@ export const validations = {
   }): boolean => {
     if (
       isCurrentlyReturned &&
-      (!rentalReturnedAt || new Date(rentalReturnedAt) <= rentalStartDate)
+      (!rentalReturnedAt || rentalReturnedAt <= rentalStartDate)
     ) {
       throw new BadRequestException(
         `The field 'returnedAt' must be provided and cannot be earlier than 'rentalStartDate' when the status is 'returned'.`,
@@ -58,13 +43,21 @@ export const validations = {
     }
     return true;
   },
+
   isReturnedAtValid: ({
     isCurrentlyReturned,
     rentalReturnedAt,
+    newStatus,
   }: {
     isCurrentlyReturned: boolean;
     rentalReturnedAt: Date;
+    newStatus: RentalStatus;
   }): boolean => {
+    // If the rental is switching away from RETURNED, ignore returnedAt validation
+    if (!isCurrentlyReturned && newStatus !== RentalStatus.RETURNED) {
+      return true;
+    }
+
     if (!isCurrentlyReturned && rentalReturnedAt) {
       throw new BadRequestException(
         `You can't provide the 'returnedAt' field unless the 'rentalStatus' is 'returned'.`,
@@ -72,9 +65,24 @@ export const validations = {
     }
     return true;
   },
-  isRentalFound: ({ rental }: { rental: Rentals }): boolean => {
-    if (!rental) {
-      throw new BadRequestException(`Rental id not found.`);
+
+  isRentalNotFound: (rental: Rentals | Rentals[] | null): boolean => {
+    if (!rental || (Array.isArray(rental) && rental.length === 0)) {
+      throw new NotFoundException('Rental(s) not found');
+    }
+    return true;
+  },
+
+  isUserNotFound: (user: User | null): boolean => {
+    if (!user) {
+      throw new NotFoundException('User id not found');
+    }
+    return true;
+  },
+
+  isBoardgameNotFound: (boardgame: BoardGame | null): boolean => {
+    if (!boardgame) {
+      throw new NotFoundException('Boardgame id not found');
     }
     return true;
   },

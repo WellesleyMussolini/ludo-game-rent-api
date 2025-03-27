@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { handleRentalEndDate } from '../utils/handle-rental-end-date';
 import { Rentals } from '../schemas/rentals.schema';
 import { RentalStatus } from 'src/rentals/types/rental.types';
+import { convertToBrasiliaTime } from 'src/utils/convert-to-brasilia-time';
 
 export const calculateRentalDates = (
   rentals: Rentals,
@@ -20,7 +21,7 @@ export const calculateRentalDates = (
     rentals.rentalStatus = RentalStatus.ACTIVE;
   }
 
-  const rentalStartDate = rentals.rentalStartDate
+  let rentalStartDate = rentals.rentalStartDate
     ? new Date(rentals.rentalStartDate)
     : new Date(
         new Date().toLocaleString('en-US', {
@@ -28,9 +29,11 @@ export const calculateRentalDates = (
         }),
       );
 
-  // substracting the hours to get the brasilia time zone correctly
-  !rentals.rentalStartDate &&
-    rentalStartDate.setHours(rentalStartDate.getHours() - 3);
+  const isStartDateEmpty = !rentals.rentalStartDate;
+
+  if (isStartDateEmpty) {
+    rentalStartDate = convertToBrasiliaTime(new Date());
+  }
 
   const rentalEndDate = handleRentalEndDate(
     rentalStartDate,

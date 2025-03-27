@@ -1,18 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { handleErrors } from 'src/utils/handle-error';
 import { calculateRentalDates } from './services/calculate-rental-dates.service';
-// import { Cron, CronExpression } from '@nestjs/schedule';
 import { RentalStatus } from 'src/rentals/types/rental.types';
-import { sortRentals } from './utils/sorter-rentals';
 import { User } from 'src/users/schemas/users.schema';
 import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { fetchBoardGameById } from 'src/boardgames/utils/fetch-boardgame-by-id';
 import { updateRentedGame } from './services/update-rented-games.service';
 import { validations } from './utils/validations';
 import { sortByStatusPriority } from 'src/utils/sort-by-status';
+import { convertToBrasiliaTime } from 'src/utils/convert-to-brasilia-time';
 
 const rentalStatusOrder = {
   overdue: 1,
@@ -35,8 +38,9 @@ export class RentalsService {
         rentalStatusOrder,
       );
 
-      const rentals: Rentals[] =
-        await this.rentalModel.aggregate(sortingPipeline);
+      const rentals: Rentals[] = await this.rentalModel
+        .aggregate(sortingPipeline)
+        .exec();
 
       return rentals;
     } catch (error) {
@@ -44,29 +48,45 @@ export class RentalsService {
     }
   }
 
+  async ensureBoardgameExists(
+    boardgameId: string | Types.ObjectId,
+  ): Promise<BoardGame> {
+    const boardgame = await fetchBoardGameById({
+      boardgameId: boardgameId,
+      boardGameModel: this.boardGameModel,
+    });
+
+    validations.isBoardgameNotFound(boardgame);
+
+    return boardgame;
+  }
+
   async findRentalById(id: string): Promise<Rentals> {
     try {
       const rental: Rentals | null = await this.rentalModel.findById(id).exec();
 
-      const isNotFound: boolean = !rental;
-
-      if (isNotFound) throw new NotFoundException();
+      validations.isRentalNotFound(rental);
 
       return rental;
     } catch (error) {
-      handleErrors({ error, message: `Rental id was not found.` });
+      handleErrors({ error, message: 'rental id was not found' });
     }
   }
 
   async findRentalsByUserById(userId: string): Promise<Rentals[]> {
     try {
-      const rentals: Rentals[] = await this.rentalModel.find({ userId }).exec();
+      const sortingPipeline = [
+        { $match: { userId: new Types.ObjectId(userId) } },
+        ...sortByStatusPriority('rentalStatus', rentalStatusOrder),
+      ];
 
-      const isNotFound: boolean = !rentals;
+      const rentals: Rentals[] = await this.rentalModel
+        .aggregate(sortingPipeline)
+        .exec();
 
-      if (isNotFound) throw new NotFoundException();
+      validations.isRentalNotFound(rentals);
 
-      return sortRentals(rentals);
+      return rentals;
     } catch (error) {
       handleErrors({ error, message: 'User rental id not found' });
     }
@@ -74,158 +94,148 @@ export class RentalsService {
 
   async create(rentals: Rentals): Promise<Rentals> {
     try {
-      const { boardgameId, userId } = rentals;
+      if (!rentals.userId || !Types.ObjectId.isValid(rentals.userId))
+        throw new BadRequestException('Invalid or missing user id');
 
-      const boardgame: BoardGame = await fetchBoardGameById({
-        boardGameModel: this.boardGameModel,
-        boardgameId: boardgameId,
-      });
+      const user = await this.userModel.findById(rentals.userId).exec();
 
-      const user: User | null = await this.userModel.findById(userId).exec();
+      validations.isUserNotFound(user);
+
+      const boardgame = await this.ensureBoardgameExists(rentals.boardgameId);
+      validations.isGameSoldOut(boardgame);
+      validations.isUserCpfValid(user.cpf);
 
       const { rentalStartDate, rentalEndDate } = calculateRentalDates(rentals);
-
-      validations.isUserValid({ id: userId, cpf: user.cpf });
-      validations.isGameSoldOut({ boardgame: boardgame });
-
-      rentals.rentalStartDate = rentalStartDate;
-      rentals.rentalEndDate = rentalEndDate;
-      rentals.userCpf = user.cpf;
-
-      await updateRentedGame({
-        boardgame,
-        adjust: 1,
-        boardGameModel: this.boardGameModel,
+      Object.assign(rentals, {
+        rentalStartDate,
+        rentalEndDate,
+        userCpf: user.cpf,
       });
 
-      return await new this.rentalModel(rentals).save();
+      await this.updateBoardgameCopies({ rental: rentals, copies: 1 });
+
+      return new this.rentalModel(rentals).save();
     } catch (error) {
-      handleErrors({ error });
+      handleErrors({ error, message: 'Failed to create rental' });
     }
+  }
+
+  async validateRentalStatusChange(existingRental: Rentals, rental: Rentals) {
+    const isCurrentlyReturned = rental.rentalStatus === RentalStatus.RETURNED;
+
+    validations.isReturnedAtEmpty({
+      isCurrentlyReturned,
+      rentalReturnedAt: rental.returnedAt ?? existingRental.returnedAt,
+      rentalStartDate: rental.rentalStartDate,
+    });
+
+    validations.isReturnedAtValid({
+      isCurrentlyReturned,
+      rentalReturnedAt: rental.returnedAt ?? existingRental.returnedAt,
+      newStatus: rental.rentalStatus, // Pass new status
+    });
   }
 
   async update(id: string, rental: Rentals): Promise<Rentals> {
     try {
-      const { boardgameId } = rental;
+      const rentalFound = await this.findRentalById(id);
 
-      const boardgame: BoardGame = await fetchBoardGameById({
-        boardgameId,
-        boardGameModel: this.boardGameModel,
-      });
+      // Update rental dates
+      Object.assign(rental, calculateRentalDates(rental));
 
-      const rentalFound: Rentals = await this.findRentalById(id);
+      // Determine rental status changes
+      const isReturningRental =
+        rentalFound.rentalStatus !== RentalStatus.RETURNED &&
+        rental.rentalStatus === RentalStatus.RETURNED;
 
-      const { rentalStartDate, rentalEndDate } = calculateRentalDates(rental);
+      const isSwitchingFromReturned =
+        rentalFound.rentalStatus === RentalStatus.RETURNED &&
+        rental.rentalStatus !== RentalStatus.RETURNED;
 
-      const updatedRental: Rentals = await this.rentalModel
-        .findByIdAndUpdate(id, rental, { new: true, runValidators: true })
-        .exec();
+      if (isReturningRental) {
+        rental.returnedAt = convertToBrasiliaTime(new Date());
+      }
 
-      const isCurrentlyReturned = rental.rentalStatus === RentalStatus.RETURNED;
+      // Validate status changes
+      this.validateRentalStatusChange(rentalFound, rental);
 
-      const wasPreviouslyReturned =
-        rentalFound.rentalStatus === RentalStatus.RETURNED;
-
-      const wasPreviouslyReturnedAndNowNot =
-        wasPreviouslyReturned && !isCurrentlyReturned;
-
-      const isCurrentlyReturnedAndWasNot =
-        isCurrentlyReturned && !wasPreviouslyReturned;
-
-      validations.isReturnedAtEmpty({
-        isCurrentlyReturned: isCurrentlyReturned,
-        rentalReturnedAt: rental.returnedAt,
-        rentalStartDate: rentalStartDate,
-      });
-      validations.isReturnedAtValid({
-        isCurrentlyReturned: isCurrentlyReturned,
-        rentalReturnedAt: rental.returnedAt,
-      });
-      validations.isRentalFound({ rental: rental });
-
-      if (wasPreviouslyReturnedAndNowNot) {
-        await updateRentedGame({
-          boardgame,
-          boardGameModel: this.boardGameModel,
-          adjust: +1,
+      // Adjust board game copies
+      if (isReturningRental) {
+        await this.updateBoardgameCopies({
+          rental,
+          copies: -1,
+          shouldThrowError: true,
         });
-        await this.rentalModel.updateOne(
-          { _id: id },
-          { $unset: { returnedAt: '' } },
-        );
-      } else if (isCurrentlyReturnedAndWasNot) {
-        await updateRentedGame({
-          boardgame,
-          boardGameModel: this.boardGameModel,
-          adjust: -1,
+      } else if (isSwitchingFromReturned) {
+        await this.updateBoardgameCopies({
+          rental,
+          copies: 1,
+          shouldThrowError: true,
         });
       }
 
-      rental.rentalStartDate = rentalStartDate;
-      rental.rentalEndDate = rentalEndDate;
+      // Prepare update query
+      const updateQuery: any = { $set: rental };
+      if (isSwitchingFromReturned) updateQuery.$unset = { returnedAt: '' };
 
-      return updatedRental;
+      return await this.rentalModel
+        .findByIdAndUpdate(id, updateQuery, {
+          new: true,
+          runValidators: true,
+        })
+        .exec();
     } catch (error) {
-      handleErrors({ error });
+      handleErrors({ error, message: 'Failed to update rental' });
     }
+  }
+
+  async updateBoardgameCopies({
+    rental,
+    copies,
+    shouldThrowError = false,
+  }: {
+    rental: Rentals;
+    copies: number;
+    shouldThrowError?: boolean;
+  }): Promise<boolean> {
+    const boardgame = await await fetchBoardGameById({
+      boardgameId: rental.boardgameId,
+      boardGameModel: this.boardGameModel,
+    });
+
+    // If the boardgame doesn't exist and we require it to exist, throw an error
+    // This is mainly used in the 'create' method, where a board game must exist
+    if (!boardgame && shouldThrowError) {
+      throw new NotFoundException('Boardgame id not found');
+    }
+
+    // If the boardgame doesn't exist but 'shouldThrowError' is false, return false
+    // This happens in 'remove', where we don't care if the boardgame exists
+    // We just remove the rental
+    if (!boardgame) {
+      return false;
+    }
+
+    await updateRentedGame({
+      boardgame,
+      copies,
+      boardGameModel: this.boardGameModel,
+    });
+
+    return true;
   }
 
   async remove(id: string): Promise<Rentals> {
     try {
       const rental: Rentals = await this.findRentalById(id);
 
-      const boardgame: BoardGame = await fetchBoardGameById({
-        boardgameId: rental.boardgameId,
-        boardGameModel: this.boardGameModel,
-      });
+      // Update boardgame copies if the boardgame exists
+      await this.updateBoardgameCopies({ rental: rental, copies: -1 });
 
-      await updateRentedGame({
-        boardgame,
-        adjust: -1,
-        boardGameModel: this.boardGameModel,
-      });
-
+      // Delete the rental
       return await this.rentalModel.findByIdAndDelete(id).exec();
     } catch (error) {
-      handleErrors({ error, message: 'Failed to remove rental history' });
+      handleErrors({ error, message: 'Failed to remove rental' });
     }
   }
-
-  // @Cron(CronExpression.EVERY_12_HOURS)
-  // async verifyRentalStatus() {
-  //   const findAllRentals = await this.rentalModel.find().exec();
-  //   const currentDate = new Date().toISOString();
-
-  //   for (const rental of findAllRentals) {
-  //     const rentalEndDate = new Date(rental.rentalEndDate).toISOString();
-
-  //     const isGameReturned = rental.rentalStatus === RentalStatus.RETURNED;
-
-  //     const isGameOverdue =
-  //       currentDate > rentalEndDate &&
-  //       rental.rentalStatus !== RentalStatus.OVERDUE;
-
-  //     const isGameActive =
-  //       currentDate <= rentalEndDate &&
-  //       rental.rentalStatus === RentalStatus.OVERDUE;
-
-  //     // Skip rentals that are already returned
-  //     if (isGameReturned) {
-  //       continue;
-  //     }
-
-  //     // Set rental status to OVERDUE if current date is past rental end date
-  //     if (isGameOverdue) {
-  //       rental.rentalStatus = RentalStatus.OVERDUE;
-  //       await rental.save();
-  //       continue; // Skip to the next iteration after updating
-  //     }
-
-  //     // Set rental status to ACTIVE if it was overdue but the end date is in the future
-  //     if (isGameActive) {
-  //       rental.rentalStatus = RentalStatus.ACTIVE;
-  //       await rental.save();
-  //     }
-  //   }
-  // }
 }

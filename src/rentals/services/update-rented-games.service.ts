@@ -5,15 +5,15 @@ import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 export const updateRentedGame = async ({
   boardgame,
   boardGameModel,
-  adjust,
+  copies,
 }: {
   boardgame: BoardGame;
   boardGameModel: Model<BoardGame>;
-  adjust: number;
+  copies: number;
 }): Promise<UpdateResult> => {
   const updatedRentedGames: number = Math.max(
     0,
-    parseInt(boardgame.rentedGames, 10) + adjust,
+    parseInt(boardgame.rentedGames, 10) + copies,
   );
 
   return await boardGameModel

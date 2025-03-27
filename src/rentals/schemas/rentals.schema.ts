@@ -4,13 +4,27 @@ import { RentalStatus } from 'src/rentals/types/rental.types';
 
 @Schema({ collection: 'rentals' })
 export class Rentals {
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({
+    type: Types.ObjectId,
+    required: true,
+    validate: {
+      validator: Types.ObjectId.isValid,
+      message: 'Invalid user id format',
+    },
+  })
   userId: Types.ObjectId;
 
   @Prop({ type: String, required: true })
   userName: string;
 
-  @Prop({ type: String, required: true })
+  @Prop({
+    type: String,
+    required: true,
+    validate: {
+      validator: (cpf: string) => !!cpf,
+      message: 'CPF is required to rent a boardgame.',
+    },
+  })
   userCpf: string;
 
   @Prop({ type: String, required: true })
@@ -19,7 +33,14 @@ export class Rentals {
   @Prop({ type: String, required: true })
   userEmail: string;
 
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({
+    type: Types.ObjectId,
+    required: true,
+    validate: {
+      validator: Types.ObjectId.isValid,
+      message: 'Invalid boardgame id format',
+    },
+  })
   boardgameId: Types.ObjectId;
 
   @Prop({ type: String, required: true })
@@ -45,7 +66,16 @@ export class Rentals {
   })
   rentalStatus?: RentalStatus;
 
-  @Prop({ type: Date, required: false })
+  @Prop({
+    type: Date,
+    required: false,
+    validate: {
+      validator: function (this: Rentals, date: Date) {
+        return !this.rentalStartDate || date > this.rentalStartDate;
+      },
+      message: 'ReturnedAt date must be later than rental start date',
+    },
+  })
   returnedAt?: Date;
 
   @Prop({ type: String, required: true })
