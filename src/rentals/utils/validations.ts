@@ -3,6 +3,7 @@ import { BoardGame } from 'src/boardgames/schemas/boardgames.schema';
 import { Rentals } from '../schemas/rentals.schema';
 import { RentalStatus } from '../types/rental.types';
 import { User } from 'src/users/schemas/users.schema';
+import { Types } from 'mongoose';
 
 export const validations = {
   isUserCpfValid: (cpf: string | null): boolean => {
@@ -83,6 +84,13 @@ export const validations = {
   isBoardgameNotFound: (boardgame: BoardGame | null): boolean => {
     if (!boardgame) {
       throw new NotFoundException('Boardgame id not found');
+    }
+    return true;
+  },
+
+  isObjectIdValid: (id: string | Types.ObjectId): boolean => {
+    if (id || !Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid or missing user id');
     }
     return true;
   },

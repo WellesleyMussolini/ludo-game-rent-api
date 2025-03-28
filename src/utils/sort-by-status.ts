@@ -18,31 +18,33 @@ export function sortByStatusPriority(
           },
         },
         rentalSortDate: {
-          $cond: {
-            if: { $eq: [`$${field}`, 'overdue'] },
-            then: '$rentalStartDate', // Oldest first for OVERDUE
-            else: {
-              $cond: {
-                if: { $eq: [`$${field}`, 'returned'] },
-                then: '$returnedAt', // Newest first for RETURNED
-                else: '$rentalStartDate', // Newest first for ACTIVE
+          $switch: {
+            branches: [
+              {
+                // For overdue, sort by rentalStartDate ascending (oldest first)
+                case: { $eq: [`$${field}`, 'overdue'] },
+                then: '$rentalStartDate',
               },
-            },
-          },
-        },
-        rentalSortOrder: {
-          $cond: {
-            if: { $eq: [`$${field}`, 'overdue'] },
-            then: 1, // Ascending for OVERDUE (oldest first)
-            else: -1, // Descending for ACTIVE and RETURNED (newest first)
+              {
+                // For active, sort by rentalStartDate descending (newest first)
+                case: { $eq: [`$${field}`, 'active'] },
+                then: { $multiply: [-1, { $toLong: '$rentalStartDate' }] },
+              },
+              {
+                // For returned, sort by returnedAt descending (newest first)
+                case: { $eq: [`$${field}`, 'returned'] },
+                then: { $multiply: [-1, { $toLong: '$returnedAt' }] },
+              },
+            ],
+            default: '$rentalStartDate',
           },
         },
       },
     },
     {
       $sort: {
-        statusPriority: 1, // Sort by status priority
-        rentalSortDate: 1, // OVERDUE (oldest first), ACTIVE & RETURNED (newest first)
+        statusPriority: 1, // Order: overdue → active → returned
+        rentalSortDate: 1, // For overdue: oldest first; active/returned: newest first (thanks to -1 multiplier)
       },
     },
   ];

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Rentals } from './schemas/rentals.schema';
 import { Model, Types } from 'mongoose';
@@ -75,16 +71,14 @@ export class RentalsService {
 
   async findRentalsByUserById(userId: string): Promise<Rentals[]> {
     try {
-      const sortingPipeline = [
-        { $match: { userId: new Types.ObjectId(userId) } },
-        ...sortByStatusPriority('rentalStatus', rentalStatusOrder),
-      ];
+      const sortingPipeline = sortByStatusPriority(
+        'rentalStatus',
+        rentalStatusOrder,
+      );
 
       const rentals: Rentals[] = await this.rentalModel
-        .aggregate(sortingPipeline)
+        .aggregate([{ $match: { userId } }, ...sortingPipeline])
         .exec();
-
-      validations.isRentalNotFound(rentals);
 
       return rentals;
     } catch (error) {
@@ -94,11 +88,9 @@ export class RentalsService {
 
   async create(rentals: Rentals): Promise<Rentals> {
     try {
-      if (!rentals.userId || !Types.ObjectId.isValid(rentals.userId))
-        throw new BadRequestException('Invalid or missing user id');
-
       const user = await this.userModel.findById(rentals.userId).exec();
 
+      validations.isObjectIdValid(rentals.userId);
       validations.isUserNotFound(user);
 
       const boardgame = await this.ensureBoardgameExists(rentals.boardgameId);
@@ -198,7 +190,7 @@ export class RentalsService {
     copies: number;
     shouldThrowError?: boolean;
   }): Promise<boolean> {
-    const boardgame = await await fetchBoardGameById({
+    const boardgame = await fetchBoardGameById({
       boardgameId: rental.boardgameId,
       boardGameModel: this.boardGameModel,
     });
