@@ -17,7 +17,7 @@ export class User {
     unique: true,
     default: null,
     validate: {
-      validator: (userCPF) => cpf.isValid(userCPF),
+      validator: (userCPF: string | null): boolean => cpf.isValid(userCPF),
       message: "Invalid 'CPF' format",
     },
   })
